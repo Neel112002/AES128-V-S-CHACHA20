@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@types/jquery": "^3.5.32"
+  },
+  "dependencies": {
+    "cors": "^2.8.5"
+  }
+}
