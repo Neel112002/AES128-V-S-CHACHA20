@@ -1,3 +1,4 @@
+// App.jsx
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import $ from "jquery";
@@ -9,26 +10,21 @@ function App() {
   const [plaintext, setPlaintext] = useState("");
   const [ciphertext, setCiphertext] = useState("No Text");
   const [mode, setMode] = useState("AES");
+  const [operation, setOperation] = useState("encrypt");
 
   const { register, handleSubmit } = useForm();
   const onSubmit = (data) => {
-    console.log("hit");
     if (data.plaintext) {
       let plaintext = data.plaintext;
-      let uri;
-
-      if (mode === "AES") {
-        uri = Constants.flaskServer;
-      } else {
-        uri = Constants.expressServer;
-      }
+      let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+      let route = operation === "encrypt" ? "encrypt" : "decrypt";
 
       let dataBody = {
         plaintext: plaintext,
       };
 
       $.ajax({
-        url: `${uri}/encrypt`,
+        url: `${uri}/${route}`,
         method: "POST",
         contentType: "application/json",
         data: JSON.stringify(dataBody),
@@ -45,10 +41,13 @@ function App() {
   useEffect(() => {
     $(".multiButton .button").on("click", function () {
       if (!$(this).hasClass("active")) {
-        $(".multiButton .button").removeClass("active");
+        $(this).siblings().removeClass("active");
         $(this).addClass("active");
-        console.log("click");
-        setMode(this.id);
+        if (this.id === "AES" || this.id === "ChaCha") {
+          setMode(this.id);
+        } else {
+          setOperation(this.id);
+        }
       }
     });
 
@@ -67,7 +66,7 @@ function App() {
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="label">Plaintext</div>
             <input
-              {...register("plaintext", { required: true, maxLength: 20 })}
+              {...register("plaintext", { required: true, maxLength: 50 })}
             />
             <div className="multiButton">
               <div id="AES" className="button AES active">
@@ -77,14 +76,23 @@ function App() {
                 ChaCha20-Poly1305
               </div>
             </div>
-
-            <input type="submit" value={"Encrypt"} />
+            <div className="multiButton">
+              <div id="encrypt" className="button encrypt active">
+                Encrypt
+              </div>
+              <div id="decrypt" className="button decrypt">
+                Decrypt
+              </div>
+            </div>
+            <input type="submit" value={operation === "encrypt" ? "Encrypt" : "Decrypt"} />
           </form>
         </div>
       </div>
       <div className="cell ciphertext">
         <div className="centerCard">
-          <div className="label">Ciphertext</div>
+          <div className="label">
+            {operation === "encrypt" ? "Ciphertext" : "Decrypted Text"}
+          </div>
           <div className="ciphertextOutput">{ciphertext}</div>
         </div>
       </div>
