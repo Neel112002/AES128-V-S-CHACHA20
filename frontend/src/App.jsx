@@ -1,4 +1,3 @@
-// App.jsx
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import $ from "jquery";
@@ -14,9 +13,11 @@ function App() {
 
   const { register, handleSubmit } = useForm();
   const onSubmit = (data) => {
+    console.log("hit");
     if (data.plaintext) {
       let plaintext = data.plaintext;
-      let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+      let uri =
+        mode === "AES" ? Constants.flaskServer : Constants.expressServer;
       let route = operation === "encrypt" ? "encrypt" : "decrypt";
 
       let dataBody = {
@@ -39,20 +40,24 @@ function App() {
   };
 
   useEffect(() => {
-    $(".multiButton .button").on("click", function () {
+    $(".multiButtonOperation .button").on("click", function () {
       if (!$(this).hasClass("active")) {
-        $(this).siblings().removeClass("active");
+        $(".multiButtonOperation .button").removeClass("active");
         $(this).addClass("active");
-        if (this.id === "AES" || this.id === "ChaCha") {
-          setMode(this.id);
-        } else {
-          setOperation(this.id);
-        }
+        setOperation(this.id);
+      }
+    });
+    $(".multiButtonMode .button").on("click", function () {
+      if (!$(this).hasClass("active")) {
+        $(".multiButtonMode .button").removeClass("active");
+        $(this).addClass("active");
+        setMode(this.id);
       }
     });
 
     return () => {
-      $(".multiButton .button").off("click");
+      $(".multiButtonOperation .button").off("click");
+      $(".multiButtonMode .button").off("click");
     };
   }, []);
 
@@ -63,20 +68,12 @@ function App() {
           Comparative Study of AES-128 and ChaCha20-Poly1305
         </div>
         <div className="centerCard">
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="label">Plaintext</div>
-            <input
-              {...register("plaintext", { required: true, maxLength: 50 })}
-            />
-            <div className="multiButton">
-              <div id="AES" className="button AES active">
-                AES-128
-              </div>
-              <div id="ChaCha" className="button ChaCha">
-                ChaCha20-Poly1305
-              </div>
-            </div>
-            <div className="multiButton">
+          <form
+            onSubmit={handleSubmit((data) => {
+              console.log("check");
+              onSubmit(data);
+            })}>
+            <div className="multiButton multiButtonOperation">
               <div id="encrypt" className="button encrypt active">
                 Encrypt
               </div>
@@ -84,14 +81,31 @@ function App() {
                 Decrypt
               </div>
             </div>
-            <input type="submit" value={operation === "encrypt" ? "Encrypt" : "Decrypt"} />
+            <div className="label">
+              {operation === "encrypt" ? "Plaintext" : "Ciphertext"}
+            </div>
+            <input
+              {...register("plaintext", { required: true, minLength: 2 })}
+            />
+            <div className="multiButton multiButtonMode">
+              <div id="AES" className="button AES active">
+                AES-128
+              </div>
+              <div id="ChaCha" className="button ChaCha">
+                ChaCha20-Poly1305
+              </div>
+            </div>
+            <input
+              type="submit"
+              value={operation === "encrypt" ? "Encrypt" : "Decrypt"}
+            />
           </form>
         </div>
       </div>
       <div className="cell ciphertext">
         <div className="centerCard">
           <div className="label">
-            {operation === "encrypt" ? "Ciphertext" : "Decrypted Text"}
+            {operation === "encrypt" ? "Ciphertext" : "Plaintext"}
           </div>
           <div className="ciphertextOutput">{ciphertext}</div>
         </div>
