@@ -13,29 +13,34 @@ function App() {
   const [operation, setOperation] = useState("encrypt");
 
   const { register, handleSubmit } = useForm();
+
   const onSubmit = (data) => {
-    if (data.plaintext) {
-      let plaintext = data.plaintext;
-      let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
-      let route = operation === "encrypt" ? "encrypt" : "decrypt";
+    let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+    let route = operation === "encrypt" ? "encrypt" : "decrypt";
 
-      let dataBody = {
-        plaintext: plaintext,
-      };
+    let dataBody = {};
 
-      $.ajax({
-        url: `${uri}/${route}`,
-        method: "POST",
-        contentType: "application/json",
-        data: JSON.stringify(dataBody),
-        success: function (data) {
-          setCiphertext(data.ciphertext);
-        },
-        error: function (xhr, status, error) {
-          console.log(error);
-        },
-      });
+    if (operation === "encrypt") {
+      if (!data.plaintext) return;
+      dataBody = { plaintext: data.plaintext };
+    } else {
+      if (!ciphertext || ciphertext === "No Text") return;
+      dataBody = { plaintext: ciphertext }; // Send ciphertext for decryption
     }
+
+    $.ajax({
+      url: `${uri}/${route}`,
+      method: "POST",
+      contentType: "application/json",
+      data: JSON.stringify(dataBody),
+      success: function (data) {
+        setCiphertext(data.ciphertext);
+      },
+      error: function (xhr, status, error) {
+        console.error("AJAX Error:", error);
+        console.error("XHR:", xhr.responseJSON);
+      },
+    });
   };
 
   useEffect(() => {
@@ -64,9 +69,12 @@ function App() {
         </div>
         <div className="centerCard">
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="label">Plaintext</div>
+            <div className="label">
+              {operation === "encrypt" ? "Plaintext" : "Ciphertext (Base64)"}
+            </div>
             <input
-              {...register("plaintext", { required: true, maxLength: 50 })}
+              {...register("plaintext", { required: true, maxLength: 500 })}
+              disabled={operation === "decrypt"}
             />
             <div className="multiButton">
               <div id="AES" className="button AES active">

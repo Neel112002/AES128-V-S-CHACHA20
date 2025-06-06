@@ -1,5 +1,3 @@
-# key_expansion.py
-
 from constants import S_BOX, RCON
 
 def rot_word(word):
