@@ -1,5 +1,3 @@
-# encryption.py
-
 from constants import S_BOX
 from key_expansion import key_expansion
 

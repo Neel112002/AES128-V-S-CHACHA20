@@ -1,5 +1,3 @@
-# decryption.py
-
 from constants import INV_S_BOX
 from key_expansion import key_expansion
 
