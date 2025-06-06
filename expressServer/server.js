@@ -26,7 +26,7 @@ app.post("/encrypt", (req, res) => {
       return res.status(400).json({ error: "plaintext must be a string" });
     }
 
-    // Convert ASCII string → Uint8Array
+    // Convert ASCII string to Uint8Array
     const encoder = new TextEncoder();
     const plaintextBytes = encoder.encode(plaintext);
 
