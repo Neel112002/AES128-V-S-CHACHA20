@@ -48,7 +48,6 @@ app.post("/encrypt", (req, res) => {
       ciphertext: `${u8ToHex(nonceBytes)}|${u8ToHex(ciphertext)}|${u8ToHex(
         tag
       )}`,
-      key: KEY_BYTES,
     });
   } catch (e) {
     console.error(e);
