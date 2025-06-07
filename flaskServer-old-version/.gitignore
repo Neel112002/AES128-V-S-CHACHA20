@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pkl
+
+# Flask environment
+instance/
+.env
+*.env
+.env.*
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Bytecode and logs
+*.log
+*.sqlite3
+*.db
+
+# Mac / Linux / Windows system files
+.DS_Store
+Thumbs.db
+
+# Flask specific
+*.egg-info/
+dist/
+build/
+
+# Pipenv / Poetry
+Pipfile.lock
+poetry.lock
+
+# Coverage and testing
+htmlcov/
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.cache/
+.pytest_cache/
+
+# Jupyter notebooks (if used)
+.ipynb_checkpoints/
