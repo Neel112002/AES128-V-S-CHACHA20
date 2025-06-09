@@ -19,8 +19,8 @@ function App() {
   const [sideSen, setSideSen] = useState(false);
 
   // Testing Parameters
-  const iteration = 1000;
-  const dataSize = 50;
+  const iteration = 100;
+  const dataSize = 1024 * 500;
   const dataPerBlock = mode === "AES" ? 16 : 64;
 
   const { register, handleSubmit } = useForm();
@@ -120,138 +120,184 @@ function App() {
     };
   }
 
-  const getThroughput = (mode) => {
-    let timings = {
-      encStart: null,
-      encEnd: null,
-      deeStart: null,
-      deeEnd: null,
-    };
+  const getThroughput = (mode, trials = iteration) => {
+  const uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+  const dataLength = dataSize;
+  const dataInKB = dataLength / 1024;
 
-    let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
-    let encBody = {
-      plaintext: getRandomAsciiString(dataSize),
-    };
+  let totalEncThroughput = 0;
+  let totalDeeThroughput = 0;
+  let totalOverallThroughput = 0;
+  let current = 0;
+
+  function runTrial() {
+    console.log(current);
+    if (current >= trials) {
+      const avgThroughput = {
+        enc: (totalEncThroughput / trials),
+        dee: (totalDeeThroughput / trials),
+        total: (totalOverallThroughput / trials),
+      };
+      setThroughput(avgThroughput);
+      console.log("Average Throughput:", avgThroughput);
+      return;
+    }
+
+    const timings = {};
+    const plaintext = getRandomAsciiString(dataLength);
 
     timings.encStart = performance.now();
 
-    callAlgorithm(`${uri}/encrypt`, JSON.stringify(encBody), (data) => {
+    callAlgorithm(`${uri}/encrypt`, JSON.stringify({ plaintext }), (encData) => {
       timings.encEnd = performance.now();
+
+      const ciphertext = encData?.ciphertext;
+      if (!ciphertext) {
+        console.error("Encryption failed in trial", current);
+        current++;
+        runTrial(); // Skip to next trial
+        return;
+      }
+
       timings.deeStart = performance.now();
-      let deeBody = {
-        plaintext: data.ciphertext,
-      };
-      callAlgorithm(`${uri}/decrypt`, JSON.stringify(deeBody), (data) => {
+
+      callAlgorithm(`${uri}/decrypt`, JSON.stringify({ plaintext: ciphertext }), (decData) => {
         timings.deeEnd = performance.now();
-        let throughputTiming = {
-          enc: null,
-          dee: null,
-          total: null,
-        };
 
-        let throughputVal = {
-          enc: null,
-          dee: null,
-          total: null,
-        };
+        const encTime = (timings.encEnd - timings.encStart) / 1000;
+        const deeTime = (timings.deeEnd - timings.deeStart) / 1000;
+        const totalTime = (timings.deeEnd - timings.encStart) / 1000;
 
-        throughputTiming.enc = (timings.encEnd - timings.encStart) / 1000;
-        throughputTiming.dee = (timings.deeEnd - timings.deeStart) / 1000;
-        throughputTiming.total = (timings.deeEnd - timings.encStart) / 1000;
+        totalEncThroughput += dataInKB / encTime;
+        totalDeeThroughput += dataInKB / deeTime;
+        totalOverallThroughput += dataInKB / totalTime;
 
-        throughputVal.enc = dataSize / 1024 / 1024 / throughputTiming.enc;
-        throughputVal.dee = dataSize / 1024 / 1024 / throughputTiming.dee;
-        throughputVal.total = dataSize / 1024 / 1024 / throughputTiming.total;
-
-        setThroughput(throughputVal);
-        console.log(throughputTiming, throughputVal);
+        current++;
+        runTrial(); // Next trial
       });
     });
-  };
+  }
 
-  const getLatency = (mode) => {
+  runTrial(); // Start first trial
+};
+
+
+  const getLatency = (mode, trails) => {
     let totalTime = {
       enc: 0,
       dee: 0,
       total: 0,
     };
-    let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
 
-    for (let i = 0; i < iteration; i++) {
-      let timings = {
+    const uri =
+      mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+
+    let current = 0;
+
+    function runNextTrail() {
+      if (current >= trails) {
+        // All done, compute average
+        const latencyVal = {
+          enc: totalTime.enc / trails,
+          dee: totalTime.dee / trails,
+          total: totalTime.total / trails,
+        };
+        setLatency(latencyVal);
+        return;
+      }
+
+      const timings = {
         encStart: null,
         encEnd: null,
         deeStart: null,
         deeEnd: null,
       };
 
-      let encBody = {
-        plaintext: getRandomAsciiString(dataPerBlock),
+      const encBody = {
+        plaintext: getRandomAsciiString(dataSize),
       };
+
       timings.encStart = performance.now();
-      callAlgorithm(`${uri}/encrypt`, JSON.stringify(encBody), (data) => {
+
+      callAlgorithm(`${uri}/encrypt`, JSON.stringify(encBody), (encData) => {
         timings.encEnd = performance.now();
-        timings.deeStart = performance.now();
-        let deeBody = {
-          plaintext: data.ciphertext,
+
+        const deeBody = {
+          plaintext: encData.ciphertext,
         };
-        callAlgorithm(`${uri}/decrypt`, JSON.stringify(deeBody), (data) => {
+
+        timings.deeStart = performance.now();
+
+        callAlgorithm(`${uri}/decrypt`, JSON.stringify(deeBody), (deeData) => {
           timings.deeEnd = performance.now();
 
           totalTime.enc += timings.encEnd - timings.encStart;
           totalTime.dee += timings.deeEnd - timings.deeStart;
           totalTime.total += timings.deeEnd - timings.encStart;
-
-          if (i == iteration - 1) {
-            let latencyVal = {
-              enc: null,
-              dee: null,
-              total: null,
-            };
-
-            latencyVal.enc = totalTime.enc / iteration;
-            latencyVal.dee = totalTime.dee / iteration;
-            latencyVal.total = totalTime.total / iteration;
-
-            setLatency(latencyVal);
-          }
+          console.log(totalTime);
+          current++;
+          runNextTrail(); // Trigger next trail
         });
       });
     }
+
+    runNextTrail(); // Start first trail
   };
 
   const getAvalanche = (mode, trials = iteration) => {
-    let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+    const uri =
+      mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+
     let totalPercentageBits = 0;
     let totalPercentageChar = 0;
+    let current = 0;
 
-    for (let i = 0; i < trials; i++) {
-      let orgData = getRandomAsciiString(dataPerBlock);
-      let orgDataBody = {
+    function runNext() {
+      if (current >= trials) {
+        setAvalanche({
+          bitWise: totalPercentageBits / trials,
+          charWise: totalPercentageChar / trials,
+        });
+        return;
+      }
+
+      const orgData = getRandomAsciiString(dataSize);
+      const orgDataBody = {
         plaintext: orgData,
       };
-      callAlgorithm(`${uri}/encrypt`, JSON.stringify(orgDataBody), (data) => {
-        let orgEncData = data.ciphertext;
+
+      callAlgorithm(`${uri}/encrypt`, JSON.stringify(orgDataBody), (orgRes) => {
+        const orgEncData = orgRes.ciphertext;
+
         let modData = [...orgData];
-        modData[0] ^= 0b00000001;
-        let modDataBody = {
+        // Flip the first bit of the first character
+        modData[0] = String.fromCharCode(modData[0].charCodeAt(0) ^ 0b00000001);
+        const modDataBody = {
           plaintext: modData.join(""),
         };
-        callAlgorithm(`${uri}/encrypt`, JSON.stringify(modDataBody), (data) => {
-          let modEncData = data.ciphertext;
-          let bitDiff = countBitDifferencePercentage(
-            orgEncData.split("|")[1],
-            modEncData.split("|")[1]
-          );
-          totalPercentageBits += bitDiff.bitWise;
-          totalPercentageChar += bitDiff.charWise;
-          setAvalanche({
-            bitWise: totalPercentageBits / trials,
-            charWise: totalPercentageChar / trials,
-          });
-        });
+
+        callAlgorithm(
+          `${uri}/encrypt`,
+          JSON.stringify(modDataBody),
+          (modRes) => {
+            const modEncData = modRes.ciphertext;
+
+            const bitDiff = countBitDifferencePercentage(
+              orgEncData.split("|")[1],
+              modEncData.split("|")[1]
+            );
+
+            totalPercentageBits += bitDiff.bitWise;
+            totalPercentageChar += bitDiff.charWise;
+
+            current++;
+            runNext(); // Proceed to next trial
+          }
+        );
       });
     }
+
+    runNext(); // Start the first iteration
   };
 
   const getAuthRes = (mode) => {
@@ -312,27 +358,42 @@ function App() {
   };
 
   const getSideSen = (mode, trails = iteration) => {
-    let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
-    let times = [];
+    const uri =
+      mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+    const times = [];
+    let totalTime = 0;
+    let current = 0;
 
-    for (let i = 0; i < trails; i++) {
-      let data = getRandomAsciiString(dataPerBlock);
-      let encBody = {
+    function runNext() {
+      if (current >= trails) {
+        // All encryption timings collected
+        const enStat = stats(times);
+        setSideSen({
+          mean: enStat.mean.toFixed(4),
+          std: enStat.stddev.toFixed(4),
+        });
+        return;
+      }
+
+      const data = getRandomAsciiString(dataSize);
+      const encBody = {
         plaintext: data,
       };
+
       const t0 = performance.now();
-      callAlgorithm(`${uri}/encrypt`, JSON.stringify(encBody), (data) => {
+      callAlgorithm(`${uri}/encrypt`, JSON.stringify(encBody), (response) => {
         const t1 = performance.now();
-        times.push(t1 - t0);
-        if (i === trails - 1) {
-          let enStat = stats(times);
-          setSideSen({
-            mean: enStat.mean.toFixed(4),
-            std: enStat.stddev.toFixed(4),
-          });
-        }
+        const duration = t1 - t0;
+
+        times.push(duration);
+        totalTime += duration;
+
+        current++;
+        runNext(); // Proceed to the next iteration
       });
     }
+
+    runNext(); // Start the first iteration
   };
 
   useEffect(() => {
@@ -361,6 +422,9 @@ function App() {
         setMode(this.id);
         setThroughput(false);
         setLatency(false);
+        setAuthRes(false);
+        setAvalanche(false);
+        setSideSen(false);
       }
     });
 
@@ -378,7 +442,7 @@ function App() {
           getThroughput(mode);
           break;
         case "latency":
-          getLatency(mode);
+          getLatency(mode, iteration);
           break;
         case "avalanche":
           getAvalanche(mode, iteration);
@@ -464,21 +528,21 @@ function App() {
                     <div className="label">Encryption</div>
                     <div className="valueBlock">
                       <div className="value">{throughput.enc.toFixed(4)}</div>{" "}
-                      MB/s
+                      KB/s
                     </div>
                   </div>
                   <div>
                     <div className="label">Decryption</div>
                     <div className="valueBlock">
                       <div className="value">{throughput.dee.toFixed(4)}</div>{" "}
-                      MB/s
+                      KB/s
                     </div>
                   </div>
                   <div>
                     <div className="label">Total</div>
                     <div className="valueBlock">
                       <div className="value">{throughput.total.toFixed(4)}</div>{" "}
-                      MB/s
+                      KB/s
                     </div>
                   </div>
                 </div>
