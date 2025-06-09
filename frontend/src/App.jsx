@@ -19,8 +19,8 @@ function App() {
   const [sideSen, setSideSen] = useState(false);
 
   // Testing Parameters
-  const iteration = 100;
-  const dataSize = 1024 * 500;
+  const iteration = 1000;
+  const dataSize = 1024 * 1;
   const dataPerBlock = mode === "AES" ? 16 : 64;
 
   const { register, handleSubmit } = useForm();
@@ -121,66 +121,74 @@ function App() {
   }
 
   const getThroughput = (mode, trials = iteration) => {
-  const uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
-  const dataLength = dataSize;
-  const dataInKB = dataLength / 1024;
+    const uri =
+      mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+    const dataLength = dataSize;
+    const dataInKB = dataLength / 1024;
 
-  let totalEncThroughput = 0;
-  let totalDeeThroughput = 0;
-  let totalOverallThroughput = 0;
-  let current = 0;
+    let totalEncThroughput = 0;
+    let totalDeeThroughput = 0;
+    let totalOverallThroughput = 0;
+    let current = 0;
 
-  function runTrial() {
-    console.log(current);
-    if (current >= trials) {
-      const avgThroughput = {
-        enc: (totalEncThroughput / trials),
-        dee: (totalDeeThroughput / trials),
-        total: (totalOverallThroughput / trials),
-      };
-      setThroughput(avgThroughput);
-      console.log("Average Throughput:", avgThroughput);
-      return;
-    }
-
-    const timings = {};
-    const plaintext = getRandomAsciiString(dataLength);
-
-    timings.encStart = performance.now();
-
-    callAlgorithm(`${uri}/encrypt`, JSON.stringify({ plaintext }), (encData) => {
-      timings.encEnd = performance.now();
-
-      const ciphertext = encData?.ciphertext;
-      if (!ciphertext) {
-        console.error("Encryption failed in trial", current);
-        current++;
-        runTrial(); // Skip to next trial
+    function runTrial() {
+      console.log(current);
+      if (current >= trials) {
+        const avgThroughput = {
+          enc: totalEncThroughput / trials,
+          dee: totalDeeThroughput / trials,
+          total: totalOverallThroughput / trials,
+        };
+        setThroughput(avgThroughput);
+        console.log("Average Throughput:", avgThroughput);
         return;
       }
 
-      timings.deeStart = performance.now();
+      const timings = {};
+      const plaintext = getRandomAsciiString(dataLength);
 
-      callAlgorithm(`${uri}/decrypt`, JSON.stringify({ plaintext: ciphertext }), (decData) => {
-        timings.deeEnd = performance.now();
+      timings.encStart = performance.now();
 
-        const encTime = (timings.encEnd - timings.encStart) / 1000;
-        const deeTime = (timings.deeEnd - timings.deeStart) / 1000;
-        const totalTime = (timings.deeEnd - timings.encStart) / 1000;
+      callAlgorithm(
+        `${uri}/encrypt`,
+        JSON.stringify({ plaintext }),
+        (encData) => {
+          timings.encEnd = performance.now();
 
-        totalEncThroughput += dataInKB / encTime;
-        totalDeeThroughput += dataInKB / deeTime;
-        totalOverallThroughput += dataInKB / totalTime;
+          const ciphertext = encData?.ciphertext;
+          if (!ciphertext) {
+            console.error("Encryption failed in trial", current);
+            current++;
+            runTrial(); // Skip to next trial
+            return;
+          }
 
-        current++;
-        runTrial(); // Next trial
-      });
-    });
-  }
+          timings.deeStart = performance.now();
 
-  runTrial(); // Start first trial
-};
+          callAlgorithm(
+            `${uri}/decrypt`,
+            JSON.stringify({ plaintext: ciphertext }),
+            (decData) => {
+              timings.deeEnd = performance.now();
 
+              const encTime = (timings.encEnd - timings.encStart) / 1000;
+              const deeTime = (timings.deeEnd - timings.deeStart) / 1000;
+              const totalTime = (timings.deeEnd - timings.encStart) / 1000;
+
+              totalEncThroughput += dataInKB / encTime;
+              totalDeeThroughput += dataInKB / deeTime;
+              totalOverallThroughput += dataInKB / totalTime;
+
+              current++;
+              runTrial(); // Next trial
+            }
+          );
+        }
+      );
+    }
+
+    runTrial(); // Start first trial
+  };
 
   const getLatency = (mode, trails) => {
     let totalTime = {
@@ -252,8 +260,14 @@ function App() {
     let totalPercentageChar = 0;
     let current = 0;
 
+    let av = {
+      bitWise: [],
+      charWise: [],
+    };
+
     function runNext() {
       if (current >= trials) {
+        console.log(av);
         setAvalanche({
           bitWise: totalPercentageBits / trials,
           charWise: totalPercentageChar / trials,
@@ -268,10 +282,31 @@ function App() {
 
       callAlgorithm(`${uri}/encrypt`, JSON.stringify(orgDataBody), (orgRes) => {
         const orgEncData = orgRes.ciphertext;
-
         let modData = [...orgData];
-        // Flip the first bit of the first character
-        modData[0] = String.fromCharCode(modData[0].charCodeAt(0) ^ 0b00000001);
+        const charIndex = Math.floor(Math.random() * modData.length);
+        const bitPosition = Math.floor(Math.random() * 7); // bits 0–6 only
+
+        const originalCharCode = modData[charIndex].charCodeAt(0);
+
+        // Ensure char is within 0–127 before flipping
+        if (originalCharCode < 0 || originalCharCode > 127) {
+          console.warn("Non-ASCII char found, skipping this trial.");
+          current++;
+          runNext();
+          return;
+        }
+
+        let flippedCharCode = originalCharCode ^ (1 << bitPosition);
+
+        // Clamp to 0–127 range after flipping
+        if (flippedCharCode > 127) {
+          flippedCharCode = 127;
+        } else if (flippedCharCode < 0) {
+          flippedCharCode = 0;
+        }
+
+        modData[charIndex] = String.fromCharCode(flippedCharCode);
+
         const modDataBody = {
           plaintext: modData.join(""),
         };
@@ -286,8 +321,9 @@ function App() {
               orgEncData.split("|")[1],
               modEncData.split("|")[1]
             );
-
+            av.bitWise.push([bitDiff.bitWise, bitPosition]);
             totalPercentageBits += bitDiff.bitWise;
+            av.charWise.push([bitDiff.charWise, charIndex]);
             totalPercentageChar += bitDiff.charWise;
 
             current++;
