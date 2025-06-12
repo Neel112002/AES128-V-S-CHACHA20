@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 // app.use(bodyParser.json());
 
-const KEY_BYTES = crypto.randomBytes(32); // 256‐bit key
+const KEY_BYTES = crypto.randomBytes(64); // 256‐bit key
 
 // Encrypt
 // Body: { plaintext: "<ASCII string>" }
