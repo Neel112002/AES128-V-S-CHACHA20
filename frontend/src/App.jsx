@@ -337,61 +337,82 @@ function App() {
   };
 
   const getAuthRes = (mode) => {
-    let data = getRandomAsciiString(dataPerBlock);
-    let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
-    let encBody = {
-      plaintext: data,
-    };
-    let authResTest = {
-      tagTamp: false,
-      ctTamp: false,
-    };
-    callAlgorithm(`${uri}/encrypt`, JSON.stringify(encBody), (data) => {
-      let cipher = data.ciphertext.split("|");
-      console.log(cipher);
-
-      const forgedTag = cipher[2].split("");
-      forgedTag[0] ^= 0x01; // Flip bit
-      cipher[2] = forgedTag.join("");
-      console.log(cipher, forgedTag);
-      let deeBody1 = {
-        plaintext: cipher.join("|"),
-      };
-
-      callAlgorithm(
-        `${uri}/decrypt`,
-        JSON.stringify(deeBody1),
-        (data) => {
-          console.log("Forged tag was accepted (authentication failed)");
-        },
-        (xhr, status, error) => {
-          console.log("Forged tag was correctly rejected");
-          authResTest.tagTamp = true;
-          setAuthRes(authResTest);
-        }
-      );
-
-      const forgedCT = cipher[1].split("");
-      forgedCT[0] ^= 0x01; // Flip bit
-      cipher[1] = forgedCT.join("");
-      console.log(cipher, forgedCT);
-      let deeBody2 = {
-        plaintext: cipher.join("|"),
-      };
-      callAlgorithm(
-        `${uri}/decrypt`,
-        JSON.stringify(deeBody2),
-        (data) => {
-          console.log("Forged ciphertext was accepted (authentication failed)");
-        },
-        (xhr, status, error) => {
-          console.log("Forged ciphertext was correctly rejected");
-          authResTest.ctTamp = true;
-          setAuthRes(authResTest);
-        }
-      );
-    });
+  let data = getRandomAsciiString(dataPerBlock);
+  let uri = mode === "AES" ? Constants.flaskServer : Constants.expressServer;
+  let encBody = {
+    plaintext: data,
   };
+
+  let authResTest = {
+    tagTamp: false,
+    ctTamp: false,
+  };
+
+  let completed = 0;
+
+  const checkDone = () => {
+    completed++;
+    if (completed === 2) {
+      setAuthRes({ ...authResTest }); // ensure new reference
+    }
+  };
+
+  callAlgorithm(`${uri}/encrypt`, JSON.stringify(encBody), (data) => {
+    let cipher = data.ciphertext.split("|");
+
+    // === Forged Tag Test ===
+    const forgedTag = cipher[2].split("");
+    forgedTag[0] = String.fromCharCode(
+      forgedTag[0].charCodeAt(0) ^ 0x01
+    ); // Flip a bit
+    const forgedCipherTag = [...cipher];
+    forgedCipherTag[2] = forgedTag.join("");
+
+    const deeBody1 = {
+      plaintext: forgedCipherTag.join("|"),
+    };
+
+    callAlgorithm(
+      `${uri}/decrypt`,
+      JSON.stringify(deeBody1),
+      () => {
+        console.log("Forged tag was accepted (authentication failed)");
+        checkDone();
+      },
+      () => {
+        console.log("Forged tag was correctly rejected");
+        authResTest.tagTamp = true;
+        checkDone();
+      }
+    );
+
+    // === Forged Ciphertext Test ===
+    const forgedCT = cipher[1].split("");
+    forgedCT[0] = String.fromCharCode(
+      forgedCT[0].charCodeAt(0) ^ 0x01
+    ); // Flip a bit
+    const forgedCipherCT = [...cipher];
+    forgedCipherCT[1] = forgedCT.join("");
+
+    const deeBody2 = {
+      plaintext: forgedCipherCT.join("|"),
+    };
+
+    callAlgorithm(
+      `${uri}/decrypt`,
+      JSON.stringify(deeBody2),
+      () => {
+        console.log("Forged ciphertext was accepted (authentication failed)");
+        checkDone();
+      },
+      () => {
+        console.log("Forged ciphertext was correctly rejected");
+        authResTest.ctTamp = true;
+        checkDone();
+      }
+    );
+  });
+};
 
   const getSideSen = (mode, trails = iteration) => {
     const uri =
@@ -649,7 +670,7 @@ function App() {
               {authRes && (
                 <div className="subGrid">
                   <div>
-                    <div className="label">Tap Tampering</div>
+                    <div className="label">Tag Tampering</div>
                     <div className="valueBlock">
                       <div className="value">
                         {authRes.tagTamp ? "Passed" : "Failed"}
