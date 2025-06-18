@@ -1,5 +1,3 @@
-# backend/encrypt.py
-# -----------------------------
 import os
 from gcm import AESGCM
 

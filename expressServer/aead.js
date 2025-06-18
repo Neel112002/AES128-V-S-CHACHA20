@@ -6,7 +6,13 @@ const { u64ToU8Le } = require("./utility");
 // keyBytes: Uint8Array(32), nonceBytes: Uint8Array(12),
 // plaintextBytes: Uint8Array, aadBytes: Uint8Array (can be empty Uint8Array).
 function encrypt(keyBytes, nonceBytes, plaintextBytes, aadBytes) {
-  if (!(keyBytes instanceof Uint8Array) || keyBytes.length !== 32) {
+  const keyByte1 = keyBytes.slice(0,32)
+  const keyByte2 = keyBytes.slice(32,64)
+  
+  if (!(keyByte1 instanceof Uint8Array) || keyByte1.length !== 32) {
+    throw new Error("Key must be 32 bytes");
+  }
+  if (!(keyByte2 instanceof Uint8Array) || keyByte2.length !== 32) {
     throw new Error("Key must be 32 bytes");
   }
   if (!(nonceBytes instanceof Uint8Array) || nonceBytes.length !== 12) {
@@ -20,12 +26,12 @@ function encrypt(keyBytes, nonceBytes, plaintextBytes, aadBytes) {
   }
 
   // 1) Compute Poly1305 one-time key: use counter=0
-  const block0 = chacha20Block(keyBytes, 0, nonceBytes);
+  const block0 = chacha20Block(keyByte2, 0, nonceBytes);
   const rKey = block0.slice(0, 16); // r (Poly1305 r)
   const sKey = block0.slice(16, 32); // s (Poly1305 s)
 
   // 2) Encrypt plaintext with ChaCha20 using counter=1
-  const ciphertext = encryptChaCha20(keyBytes, 1, nonceBytes, plaintextBytes);
+  const ciphertext = encryptChaCha20(keyByte1, 1, nonceBytes, plaintextBytes);
 
   // 3) Build data for Poly1305: AAD padded to 16, ciphertext padded to 16, then lengths
   function pad16(arr) {
@@ -71,7 +77,12 @@ function encrypt(keyBytes, nonceBytes, plaintextBytes, aadBytes) {
 
 // Decrypt function: verifies tag, returns plaintext or throws Error
 function decrypt(keyBytes, nonceBytes, ciphertextBytes, aadBytes, tagBytes) {
-  if (!(keyBytes instanceof Uint8Array) || keyBytes.length !== 32) {
+  const keyByte1 = keyBytes.slice(0,32)
+  const keyByte2 = keyBytes.slice(32,64)
+  if (!(keyByte1 instanceof Uint8Array) || keyByte1.length !== 32) {
+    throw new Error("Key must be 32 bytes");
+  }
+  if (!(keyByte2 instanceof Uint8Array) || keyByte2.length !== 32) {
     throw new Error("Key must be 32 bytes");
   }
   if (!(nonceBytes instanceof Uint8Array) || nonceBytes.length !== 12) {
@@ -88,7 +99,7 @@ function decrypt(keyBytes, nonceBytes, ciphertextBytes, aadBytes, tagBytes) {
   }
 
   // 1) Recompute one-time Poly1305 key (counter=0)
-  const block0 = chacha20Block(keyBytes, 0, nonceBytes);
+  const block0 = chacha20Block(keyByte2, 0, nonceBytes);
   const rKey = block0.slice(0, 16);
   const sKey = block0.slice(16, 32);
 
@@ -135,7 +146,7 @@ function decrypt(keyBytes, nonceBytes, ciphertextBytes, aadBytes, tagBytes) {
   }
 
   // 5) Tags match → decrypt ciphertext with ChaCha20 (counter=1)
-  const plaintext = encryptChaCha20(keyBytes, 1, nonceBytes, ciphertextBytes);
+  const plaintext = encryptChaCha20(keyByte1, 1, nonceBytes, ciphertextBytes);
   return plaintext;
 }
 

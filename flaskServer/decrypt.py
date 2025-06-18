@@ -1,5 +1,3 @@
-# backend/decrypt.py
-# -----------------------------
 from gcm import AESGCM
 
 def decrypt_message(ciphertext: bytes, iv: bytes, tag: bytes, key: bytes, aad: bytes = b"") -> bytes:

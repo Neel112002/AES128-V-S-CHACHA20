@@ -9,12 +9,10 @@ const { hexToU8, u8ToHex } = require("./utility");
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 // app.use(bodyParser.json());
 
-//–– 1) SERVER‐WIDE STATIC KEY (for demonstration only) ––//
-// In a production system, don’t hard‐code keys. Use a secure KMS.
-const KEY_BYTES = crypto.randomBytes(32); // 256‐bit key
+const KEY_BYTES = crypto.randomBytes(64); // 256‐bit key
 
 // Encrypt
 // Body: { plaintext: "<ASCII string>" }
@@ -48,7 +46,6 @@ app.post("/encrypt", (req, res) => {
       ciphertext: `${u8ToHex(nonceBytes)}|${u8ToHex(ciphertext)}|${u8ToHex(
         tag
       )}`,
-      key: KEY_BYTES,
     });
   } catch (e) {
     console.error(e);
